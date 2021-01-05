@@ -47,7 +47,6 @@ impl Log {
     pub fn append(&self, buf: &[u8]) -> Result<()> {
         let mut writer = self.writer.lock().unwrap();
         let position = writer.seek(SeekFrom::Current(0))? as usize;
-        println!("{}", position);
         if position + buf.len() >= self.max_size {
             Err(Error::new(ErrorKind::UnexpectedEof, ""))
         } else {
@@ -77,7 +76,9 @@ impl Log {
 mod tests {
     use super::*;
     use std::fs;
+
     use tempfile::tempdir;
+    use test::{black_box, Bencher};
 
     fn create_tmp_folder() -> PathBuf {
         let tmp_dir = tempdir().unwrap().path().to_owned();
@@ -138,5 +139,38 @@ mod tests {
         log.append(seq.as_slice()).unwrap();
         log.flush();
         log.read(555, 1).unwrap();
+    }
+
+    #[bench]
+    fn bench_write(b: &mut Bencher) {
+        let tmp_dir = create_tmp_folder();
+        let log = Log::new(tmp_dir, 0, 1024e+9 as usize).unwrap();
+
+        let seq: Vec<u8> = vec![255_u8; 2048];
+
+        b.iter(|| {
+            // Inner closure, the actual test
+            for i in 1..1000 {
+                black_box(log.append(seq.as_slice()).unwrap());
+            }
+            log.flush()
+        });
+    }
+
+    #[bench]
+    fn bench_read(b: &mut Bencher) {
+        let tmp_dir = create_tmp_folder();
+        let mut log = Log::new(tmp_dir, 0, 1024e+9 as usize).unwrap();
+
+        let seq: Vec<u8> = vec![255_u8; 2048000];
+        log.append(seq.as_slice());
+        log.flush();
+
+        b.iter(|| {
+            // Inner closure, the actual test
+            for i in 1..1000 {
+                black_box(log.read(2048 * i, 256).unwrap());
+            }
+        });
     }
 }
