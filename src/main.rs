@@ -5,7 +5,7 @@
 #![feature(test)]
 extern crate test;
 
-mod log;
+mod store;
 
 fn main() {
     println!("Hello, world!");

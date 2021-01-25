@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Log {
-    // File Descriptor
     file: File,
 
     // Index of the log file
@@ -125,7 +124,7 @@ mod tests {
         let seq: Vec<u8> = (0_u8..255_u8).collect();
 
         log.append(seq.as_slice()).unwrap();
-        log.flush();
+        log.flush().unwrap();
         assert_eq!(log.read(0, 255).unwrap(), seq)
     }
 
@@ -137,7 +136,7 @@ mod tests {
         let seq: Vec<u8> = (0_u8..255_u8).collect();
 
         log.append(seq.as_slice()).unwrap();
-        log.flush();
+        log.flush().unwrap();
         log.read(555, 1).unwrap();
     }
 
@@ -150,7 +149,7 @@ mod tests {
 
         b.iter(|| {
             // Inner closure, the actual test
-            for i in 1..1000 {
+            for _ in 1..1000 {
                 black_box(log.append(seq.as_slice()).unwrap());
             }
             log.flush()
@@ -163,8 +162,8 @@ mod tests {
         let mut log = Log::new(tmp_dir, 0, 1024e+9 as usize).unwrap();
 
         let seq: Vec<u8> = vec![255_u8; 2048000];
-        log.append(seq.as_slice());
-        log.flush();
+        log.append(seq.as_slice()).unwrap();
+        log.flush().unwrap();
 
         b.iter(|| {
             // Inner closure, the actual test
