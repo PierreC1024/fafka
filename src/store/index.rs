@@ -1,11 +1,8 @@
-use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 
 use std::collections::HashMap;
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
-use std::io::{Error, ErrorKind, Result};
-
-use std::sync::{Arc, Mutex};
+use std::io::Result;
+use std::io::{BufReader, Read, Seek, SeekFrom};
 
 use bincode;
 use rayon::prelude::*;
@@ -34,7 +31,7 @@ pub struct Index {
     entries: HashMap<u32, Entry>,
 }
 
-// Simple Index File implementation: 
+// Simple Index File implementation:
 // Improvements:
 // - Synchronize file with entries
 // - Implement a method to load new entries only
@@ -82,7 +79,6 @@ mod tests {
     use std::iter::FromIterator;
 
     use tempfile::tempdir;
-    use test::{black_box, Bencher};
 
     fn create_tmp_folder() -> PathBuf {
         let tmp_dir = tempdir().unwrap().path().to_owned();
@@ -93,7 +89,7 @@ mod tests {
     #[test]
     fn test_write() {
         let tmp_dir = create_tmp_folder();
-        let mut index = Index::new(tmp_dir, 0, 2048).unwrap();
+        let index = Index::new(tmp_dir, 0, 2048).unwrap();
 
         let indices: Vec<Entry> = vec![Entry::new(0, 1024), Entry::new(1024, 2048)];
 
@@ -125,17 +121,11 @@ mod tests {
 
         index.read().unwrap();
 
-        let mut read = Vec::from_iter(index.entries.values()
-                                .map(|a| { *a })
-                                .collect::<Vec<Entry>>()
-        );
+        let mut read = Vec::from_iter(index.entries.values().map(|a| *a).collect::<Vec<Entry>>());
 
         read.sort();
         indices.sort();
 
-        assert_eq!(
-            indices,
-            read,
-        );
+        assert_eq!(indices, read,);
     }
 }

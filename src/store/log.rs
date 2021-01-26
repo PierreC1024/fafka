@@ -1,11 +1,9 @@
-use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
-use std::io::{Error, ErrorKind, Result};
+use std::io::Result;
+use std::io::{BufReader, Read, Seek, SeekFrom};
 
 use super::Store;
-use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Log {
@@ -69,6 +67,14 @@ mod tests {
 
         let seq: Vec<u8> = (0_u8..255_u8).collect();
         log.append(seq.as_slice()).unwrap();
+        log.flush().unwrap();
+
+        let mut buf = BufReader::new(log.store.file);
+        buf.seek(SeekFrom::Start(0)).unwrap();
+
+        let mut written = vec![];
+        buf.read_to_end(&mut written).unwrap();
+        assert_eq!(seq, written);
     }
 
     #[test]
