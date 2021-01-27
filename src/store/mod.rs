@@ -54,7 +54,8 @@ impl Store {
 
     // TODO Remove mut! This is declaired as mutable because
     // we use the seek function on the BufReader. We don't really
-    // need to keep track of the position inside a file between two reads.
+    // need to keep track of the position inside a file between two reads,
+    // and Arc<Mutex<BufWriter>> is thread safe.
     pub fn read(&mut self, start: u32, size: u32) -> std::io::Result<Vec<u8>> {
         if start + size >= self.max_size {
             Err(Error::new(ErrorKind::UnexpectedEof, ""))

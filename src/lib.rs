@@ -6,8 +6,7 @@
 #![allow(dead_code)] // Temporary
 extern crate test;
 
+pub mod server;
 mod store;
 
-fn main() {
-    println!("Hello, world!");
-}
+pub const DEFAULT_PORT: &str = "9092";
