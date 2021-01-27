@@ -1,19 +1,18 @@
 use std::path::PathBuf;
 
 use std::io::Result;
-use std::io::{BufReader, Read, Seek, SeekFrom};
 
 use super::Store;
 
 #[derive(Debug)]
 pub struct Log {
     // Index of the log file
-    start_offset: usize,
+    start_offset: u32,
     store: Store,
 }
 
 impl Log {
-    pub fn new(path: PathBuf, start_offset: usize, max_size: usize) -> Result<Self> {
+    pub fn new(path: PathBuf, start_offset: u32, max_size: u32) -> Result<Self> {
         Ok(Self {
             start_offset,
             store: Store::new(path.join(format!("{}.log", start_offset)), max_size)?,
@@ -28,8 +27,8 @@ impl Log {
         self.store.flush()
     }
 
-    pub fn read(&mut self, offset: usize, size: usize) -> std::io::Result<Vec<u8>> {
-        self.store.read(offset, size)
+    pub fn read(&mut self, start: u32, size: u32) -> std::io::Result<Vec<u8>> {
+        self.store.read(start, size)
     }
 }
 
@@ -40,6 +39,8 @@ mod tests {
 
     use tempfile::tempdir;
     use test::{black_box, Bencher};
+
+    use std::io::{BufReader, Read, Seek, SeekFrom};
 
     fn create_tmp_folder() -> PathBuf {
         let tmp_dir = tempdir().unwrap().path().to_owned();
@@ -113,7 +114,7 @@ mod tests {
     #[bench]
     fn bench_write(b: &mut Bencher) {
         let tmp_dir = create_tmp_folder();
-        let log = Log::new(tmp_dir, 0, 1024e+9 as usize).unwrap();
+        let log = Log::new(tmp_dir, 0, 1024e+9 as u32).unwrap();
 
         let seq: Vec<u8> = vec![255_u8; 2048];
 
@@ -129,7 +130,7 @@ mod tests {
     #[bench]
     fn bench_read(b: &mut Bencher) {
         let tmp_dir = create_tmp_folder();
-        let mut log = Log::new(tmp_dir, 0, 1024e+9 as usize).unwrap();
+        let mut log = Log::new(tmp_dir, 0, 1024e+9 as u32).unwrap();
 
         let seq: Vec<u8> = vec![255_u8; 2048000];
         log.append(seq.as_slice()).unwrap();

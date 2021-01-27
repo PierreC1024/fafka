@@ -13,13 +13,13 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug)]
 struct Store {
     file: File,
-    max_size: usize,
+    max_size: u32,
     writer: Arc<Mutex<BufWriter<File>>>,
     reader: BufReader<File>,
 }
 
 impl Store {
-    pub fn new(path: PathBuf, max_size: usize) -> Result<Self> {
+    pub fn new(path: PathBuf, max_size: u32) -> Result<Self> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -39,8 +39,8 @@ impl Store {
 
     pub fn append(&self, buf: &[u8]) -> Result<()> {
         let mut writer = self.writer.lock().unwrap();
-        let position = writer.seek(SeekFrom::Current(0))? as usize;
-        if position + buf.len() >= self.max_size {
+        let position = writer.seek(SeekFrom::Current(0))? as u32;
+        if position + buf.len() as u32 >= self.max_size {
             Err(Error::new(ErrorKind::UnexpectedEof, ""))
         } else {
             writer.write_all(buf)
@@ -52,18 +52,22 @@ impl Store {
         writer.flush()
     }
 
-    pub fn read(&mut self, offset: usize, size: usize) -> std::io::Result<Vec<u8>> {
-        if offset + size >= self.max_size {
+    // TODO Remove mut! This is declaired as mutable because
+    // we use the seek function on the BufReader. We don't really
+    // need to keep track of the position inside a file between two reads.
+    pub fn read(&mut self, start: u32, size: u32) -> std::io::Result<Vec<u8>> {
+        if start + size >= self.max_size {
             Err(Error::new(ErrorKind::UnexpectedEof, ""))
         } else {
-            let mut buf = vec![0u8; size];
-            self.reader.seek(SeekFrom::Start(offset as u64))?;
+            let mut buf = vec![0u8; size as usize];
+            self.reader.seek(SeekFrom::Start(start as u64))?;
             let n = self.reader.read(&mut buf)?;
             buf.truncate(n);
             Ok(buf)
         }
     }
 
+    // TODO Remove mut!
     pub fn read_all(&mut self) -> Result<Vec<u8>> {
         let mut buf = vec![];
         self.reader.seek(SeekFrom::Start(0))?;

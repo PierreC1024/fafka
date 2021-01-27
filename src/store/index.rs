@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 use std::io::Result;
-use std::io::{BufReader, Read, Seek, SeekFrom};
 
 use bincode;
 use rayon::prelude::*;
@@ -10,25 +9,32 @@ use serde::{Deserialize, Serialize};
 
 use super::Store;
 
-const ENTRY_SIZE: usize = 8;
+const ENTRY_SIZE: usize = 12;
 
 #[derive(Eq, Ord, Debug, PartialEq, PartialOrd, Serialize, Deserialize, Clone, Copy)]
 pub struct Entry {
     pub offset: u32,
+    pub start: u32,
     pub size: u32,
 }
 
 impl Entry {
-    pub fn new(offset: u32, size: u32) -> Self {
-        Self { offset, size }
+    pub fn new(offset: u32, size: u32, start: u32) -> Self {
+        Self {
+            offset,
+            size,
+            start,
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct Index {
-    start_offset: usize,
     store: Store,
     entries: HashMap<u32, Entry>,
+    pub start_offset: u32,
+    pub last_offset: u32,
+    max_size: u32,
 }
 
 // Simple Index File implementation:
@@ -37,15 +43,32 @@ pub struct Index {
 // - Implement a method to load new entries only
 // - Parallelize deserialization when readind
 impl Index {
-    pub fn new(path: PathBuf, start_offset: usize, max_size: usize) -> Result<Self> {
-        Ok(Self {
+    pub fn new(path: PathBuf, start_offset: u32, max_size: u32) -> Result<Self> {
+        let mut i = Self {
             start_offset,
-            store: Store::new(path.join(format!("{}.log", start_offset)), max_size)?,
+            last_offset: 0,
+            store: Store::new(path.join(format!("{}.index", start_offset)), max_size)?,
             entries: HashMap::new(),
-        })
+            max_size,
+        };
+
+        i.read()?;
+
+        Ok(i)
     }
 
-    pub fn append(&self, entries: Vec<Entry>) -> Result<()> {
+    pub fn append(&mut self, entries: Vec<Entry>) -> Result<()> {
+        // Adding Entries to memory index and updating last_offset
+        let mut last_offset = entries[0].offset;
+        for e in entries.clone() {
+            self.entries.insert(e.offset, e);
+            if e.offset > last_offset {
+                last_offset = e.offset;
+            }
+        }
+        self.last_offset = last_offset;
+
+        // Serializing Entries
         let buf = entries
             .par_iter()
             .map(|e| bincode::serialize(&e).unwrap())
@@ -70,6 +93,10 @@ impl Index {
 
         Ok(())
     }
+
+    pub fn get(&self, offset: u32) -> Option<&Entry> {
+        self.entries.get(&offset)
+    }
 }
 
 #[cfg(test)]
@@ -78,6 +105,7 @@ mod tests {
     use std::fs;
     use std::iter::FromIterator;
 
+    use std::io::{BufReader, Read, Seek, SeekFrom};
     use tempfile::tempdir;
 
     fn create_tmp_folder() -> PathBuf {
@@ -89,9 +117,9 @@ mod tests {
     #[test]
     fn test_write() {
         let tmp_dir = create_tmp_folder();
-        let index = Index::new(tmp_dir, 0, 2048).unwrap();
+        let mut index = Index::new(tmp_dir, 0, 2048).unwrap();
 
-        let indices: Vec<Entry> = vec![Entry::new(0, 1024), Entry::new(1024, 2048)];
+        let indices: Vec<Entry> = vec![Entry::new(0, 1024, 0), Entry::new(2, 2048, 1024)];
 
         index.append(indices.clone()).unwrap();
         index.flush().unwrap();
@@ -114,7 +142,7 @@ mod tests {
         let tmp_dir = create_tmp_folder();
         let mut index = Index::new(tmp_dir.clone(), 0, 2048).unwrap();
 
-        let mut indices: Vec<Entry> = vec![Entry::new(0, 1024), Entry::new(1024, 2048)];
+        let mut indices: Vec<Entry> = vec![Entry::new(0, 1024, 0), Entry::new(2, 2048, 1024)];
 
         index.append(indices.clone()).unwrap();
         index.flush().unwrap();
